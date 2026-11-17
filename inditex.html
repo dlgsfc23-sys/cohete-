@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0e27">
+<title>CoheteLab</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: linear-gradient(135deg,#0a0e27 0%,#1a1f3a 100%);
+  color:#e0e6ff; min-height:100vh; padding-bottom:70px;
+}
+header {
+  background:rgba(10,14,39,0.95); backdrop-filter:blur(10px);
+  padding:15px 20px; position:sticky; top:0; z-index:100;
+  border-bottom:2px solid #00d4ff; display:flex; align-items:center; gap:10px;
+}
+header h1 { font-size:1.3em; background:linear-gradient(90deg,#00d4ff,#7b2ff7);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.page { display:none; padding:20px; max-width:800px; margin:0 auto; animation:fadeIn .3s; }
+.page.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+.card {
+  background:rgba(30,40,70,0.6); border:1px solid rgba(0,212,255,0.3);
+  border-radius:15px; padding:20px; margin-bottom:15px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.3);
+}
+.card h2 { color:#00d4ff; font-size:1.1em; margin-bottom:15px; }
+label { display:block; font-size:.85em; color:#8fa3c7; margin:10px 0 5px; }
+input, select, textarea {
+  width:100%; padding:12px; border-radius:10px;
+  border:1px solid rgba(0,212,255,0.3); background:rgba(10,14,39,0.8);
+  color:#e0e6ff; font-size:1em; font-family:inherit;
+}
+input:focus, textarea:focus { outline:none; border-color:#00d4ff; box-shadow:0 0 10px rgba(0,212,255,0.3); }
+button {
+  padding:12px 20px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#00d4ff,#7b2ff7); color:white;
+  font-weight:bold; font-size:.95em; margin-top:10px; width:100%;
+  transition:transform .15s;
+}
+button:active { transform:scale(0.97); }
+button.secondary { background:rgba(0,212,255,0.15); border:1px solid #00d4ff; color:#00d4ff; }
+.result {
+  margin-top:15px; padding:15px; border-radius:10px;
+  background:rgba(0,212,255,0.1); border-left:3px solid #00d4ff;
+  font-family:monospace; font-size:.9em; line-height:1.6;
+}
+#threeCanvas { width:100%; height:350px; border-radius:15px; background:radial-gradient(circle,#1a1f3a,#0a0e27); }
+.slider-row { display:flex; align-items:center; gap:10px; margin:8px 0; }
+.slider-row input[type=range] { flex:1; }
+.slider-row span { min-width:60px; text-align:right; color:#00d4ff; font-family:monospace; }
+nav.bottom {
+  position:fixed; bottom:0; left:0; right:0;
+  background:rgba(10,14,39,0.98); backdrop-filter:blur(10px);
+  display:flex; border-top:2px solid #00d4ff; z-index:100;
+}
+nav.bottom button {
+  flex:1; background:none; border:none; padding:10px 5px; margin:0;
+  color:#8fa3c7; font-size:.7em; display:flex; flex-direction:column;
+  align-items:center; gap:3px; border-radius:0;
+}
+nav.bottom button .icon { font-size:1.5em; }
+nav.bottom button.active { color:#00d4ff; }
+nav.bottom button.active .icon { filter:drop-shadow(0 0 8px #00d4ff); }
+#notesList { display:flex; flex-direction:column; gap:10px; }
+.note-item {
+  background:rgba(30,40,70,0.6); padding:12px; border-radius:10px;
+  border-left:3px solid #7b2ff7; display:flex; justify-content:space-between;
+  align-items:center; cursor:pointer;
+}
+.note-item .del { background:#ff3366; border-radius:8px; padding:6px 10px;
+  margin:0; width:auto; font-size:.8em; }
+#chatBox { height:300px; overflow-y:auto; padding:10px; background:rgba(10,14,39,0.8);
+  border-radius:10px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px; }
+.msg { padding:10px 14px; border-radius:15px; max-width:85%; font-size:.9em; line-height:1.4; }
+.msg.user { background:linear-gradient(135deg,#00d4ff,#0088cc); color:white; align-self:flex-end; }
+.msg.ai { background:rgba(123,47,247,0.3); border:1px solid rgba(123,47,247,0.5); align-self:flex-start; }
+.chat-input { display:flex; gap:8px; }
+.chat-input input { flex:1; }
+.chat-input button { width:auto; margin:0; padding:12px 18px; }
+.formula { font-family:monospace; color:#ffcc00; font-size:.85em; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:1.5em">🚀</span>
+  <h1>CoheteLab</h1>
+</header>
+
+<!-- CALCULADORA -->
+<div class="page active" id="page-calc">
+  <div class="card">
+    <h2>🧮 Calculadora de Cohete</h2>
+    <label>Masa inicial (kg)</label>
+    <input type="number" id="m0" value="1000" step="10">
+    <label>Masa final / seca (kg)</label>
+    <input type="number" id="mf" value="100" step="10">
+    <label>Empuje del motor (N)</label>
+    <input type="number" id="thrust" value="15000" step="100">
+    <label>ISP específico (s)</label>
+    <input type="number" id="isp" value="300" step="10">
+    <button onclick="calcularCohete()">⚡ Calcular</button>
+    <div class="result" id="resCohete" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>🌍 Órbita</h2>
+    <label>Altitud orbital (km)</label>
+    <input type="number" id="altOrb" value="400" step="10">
+    <button onclick="calcularOrbita()">🛰️ Calcular órbita</button>
+    <div class="result" id="resOrbita" style="display:none"></div>
+  </div>
+</div>
+
+<!-- DISEÑO 3D -->
+<div class="page" id="page-3d">
+  <div class="card">
+    <h2>🎨 Diseñador 3D</h2>
+    <div id="threeCanvas"></div>
+    <label style="margin-top:15px">Altura del cohete</label>
+    <div class="slider-row">
+      <input type="range" id="sHeight" min="2" max="10" value="5" step="0.1" oninput="updateRocket()">
+      <span id="vHeight">5.0</span>
+    </div>
+    <label>Radio del cuerpo</label>
+    <div class="slider-row">
+      <input type="range" id="sRadius" min="0.3" max="2" value="0.8" step="0.05" oninput="updateRocket()">
+      <span id="vRadius">0.80</span>
+    </div>
+    <label>Altura del cono</label>
+    <div class="slider-row">
+      <input type="range" id="sCone" min="0.5" max="3" value="1.5" step="0.1" oninput="updateRocket()">
+      <span id="vCone">1.5</span>
+    </div>
+    <label>Número de aletas</label>
+    <div class="slider-row">
+      <input type="range" id="sFins" min="0" max="8" value="4" step="1" oninput="updateRocket()">
+      <span id="vFins">4</span>
+    </div>
+    <label>Color</label>
+    <input type="color" id="colorRocket" value="#00d4ff" oninput="updateRocket()">
+    <button onclick="rotateAuto()">🔄 Rotación automática</button>
+  </div>
+</div>
+
+<!-- NOTAS -->
+<div class="page" id="page-notes">
+  <div class="card">
+    <h2>📝 Nueva nota</h2>
+    <input type="text" id="noteTitle" placeholder="Título...">
+    <textarea id="noteBody" rows="5" placeholder="Contenido de la nota..." style="margin-top:10px"></textarea>
+    <button onclick="saveNote()">💾 Guardar nota</button>
+  </div>
+  <div class="card">
+    <h2>📚 Mis notas</h2>
+    <div id="notesList"></div>
+  </div>
+</div>
+
+<!-- MINI IA -->
+<div class="page" id="page-ai">
+  <div class="card">
+    <h2>🤖 Mini IA Aeroespacial</h2>
+    <div id="chatBox"></div>
+    <div class="chat-input">
+      <input type="text" id="chatInput" placeholder="Pregunta algo..." onkeypress="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom">
+  <button class="active" onclick="showPage('calc',this)"><span class="icon">🧮</span>Calc</button>
+  <button onclick="showPage('3d',this)"><span class="icon">🚀</span>3D</button>
+  <button onclick="showPage('notes',this)"><span class="icon">📝</span>Notas</button>
+  <button onclick="showPage('ai',this)"><span class="icon">🤖</span>IA</button>
+</nav>
+
+<script>
+// ============ NAVEGACIÓN ============
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('nav.bottom button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (id === '3d') setTimeout(initThree, 100);
+  if (id === 'notes') renderNotes();
+}
+
+// ============ CALCULADORA ============
+const G0 = 9.80665;
+function calcularCohete() {
+  const m0 = parseFloat(document.getElementById('m0').value);
+  const mf = parseFloat(document.getElementById('mf').value);
+  const F = parseFloat(document.getElementById('thrust').value);
+  const isp = parseFloat(document.getElementById('isp').value);
+  if (m0 <= mf || mf <= 0) { alert('Masa inicial debe ser mayor que la final'); return; }
+  const ve = isp * G0;
+  const dv = ve * Math.log(m0 / mf);
+  const twr = F / (m0 * G0);
+  const mdot = F / ve;
+  const burnTime = (m0 - mf) / mdot;
+  const res = document.getElementById('resCohete');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="formula">Δv = Isp · g₀ · ln(m₀/mf)</div>
+    <b>Delta-V:</b> ${dv.toFixed(1)} m/s (${(dv/1000).toFixed(2)} km/s)<br>
+    <b>Velocidad escape:</b> ${ve.toFixed(0)} m/s<br>
+    <b>TWR (despegue):</b> ${twr.toFixed(2)} ${twr < 1 ? '⚠️ NO DESPEGA' : twr > 2 ? '⚡ Muy potente' : '✅ OK'}<br>
+    <b>Flujo másico:</b> ${mdot.toFixed(2)} kg/s<br>
+    <b>Tiempo de combustión:</b> ${burnTime.toFixed(1)} s<br>
+    <b>Alcance teórico (balístico):</b> ${(dv*0.08).toFixed(1)} km
+  `;
+}
+
+function calcularOrbita() {
+  const alt = parseFloat(document.getElementById('altOrb').value);
+  const R = 6371, mu = 398600.4418;
+  const r = R + alt;
+  const v = Math.sqrt(mu / r);
+  const T = 2 * Math.PI * Math.sqrt(r**3 / mu);
+  const vEsc = Math.sqrt(2 * mu / r);
+  const res = document.getElementById('resOrbita');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="formula">v = √(μ/r) | T = 2π√(r³/μ)</div>
+    <b>Radio orbital:</b> ${r.toFixed(0)} km<br>
+    <b>Velocidad orbital:</b> ${v.toFixed(2)} km/s<br>
+    <b>Velocidad escape:</b> ${vEsc.toFixed(2)} km/s<br>
+    <b>Período orbital:</b> ${T.toFixed(0)} s (${(T/60).toFixed(1)} min)
+  `;
+}
+
+// ============ THREE.JS 3D ============
+let scene, camera, renderer, rocketGroup, autoRotate = false;
+function initThree() {
+  const container = document.getElementById('threeCanvas');
+  if (!container || renderer) { if(renderer) updateRocket(); return; }
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, container.clientWidth/350, 0.1, 1000);
+  camera.position.set(0, 8, 14);
+  camera.lookAt(0, 5, 0);
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(container.clientWidth, 350);
+  container.appendChild(renderer.domElement);
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(5, 10, 5);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0x404060, 1.5));
+  const grid = new THREE.GridHelper(20, 20, 0x00d4ff, 0x1a3a5a);
+  scene.add(grid);
+  rocketGroup = new THREE.Group();
+  scene.add(rocketGroup);
+  updateRocket();
+  animate();
+}
+
+function updateRocket() {
+  if (!rocketGroup) return;
+  const h = parseFloat(document.getElementById('sHeight').value);
+  const r = parseFloat(document.getElementById('sRadius').value);
+  const ch = parseFloat(document.getElementById('sCone').value);
+  const fins = parseInt(document.getElementById('sFins').value);
+  const color = document.getElementById('colorRocket').value;
+  document.getElementById('vHeight').textContent = h.toFixed(1);
+  document.getElementById('vRadius').textContent = r.toFixed(2);
+  document.getElementById('vCone').textContent = ch.toFixed(1);
+  document.getElementById('vFins').textContent = fins;
+  while(rocketGroup.children.length) rocketGroup.remove(rocketGroup.children[0]);
+
+  const mat = new THREE.MeshPhongMaterial({ color, shininess:100 });
+  const matDark = new THREE.MeshPhongMaterial({ color:0x333344, shininess:50 });
+
+  // Cuerpo
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32), mat);
+  body.position.y = h/2;
+  rocketGroup.add(body);
+
+  // Cono
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(r, ch, 32), mat);
+  cone.position.y = h + ch/2;
+  rocketGroup.add(cone);
+
+  // Tobera
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(r*0.9, r*0.6, 0.4, 32), matDark);
+  nozzle.position.y = -0.2;
+  rocketGroup.add(nozzle);
+
+  // Aletas
+  for (let i = 0; i < fins; i++) {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.lineTo(r*1.8, 0);
+    shape.lineTo(0, h*0.35); shape.lineTo(0, 0);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth:0.08, bevelEnabled:false });
+    const fin = new THREE.Mesh(geo, mat);
+    fin.rotation.y = (i / fins) * Math.PI * 2;
+    fin.position.y = 0.2;
+    rocketGroup.add(fin);
+  }
+}
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  if (autoRotate && rocketGroup) rocketGroup.rotation.y += 0.01;
+  t += 0.02;
+  renderer.render(scene, camera);
+}
+
+function rotateAuto() { autoRotate = !autoRotate; }
+
+// ============ NOTAS ============
+function getNotes() {
+  try { return JSON.parse(localStorage.getItem('notes') || '[]'); } catch { return []; }
+}
+function saveNote() {
+  const title = document.getElementById('noteTitle').value.trim();
+  const body = document.getElementById('noteBody').value.trim();
+  if (!title || !body) { alert('Rellena título y contenido'); return; }
+  const notes = getNotes();
+  notes.unshift({ id: Date.now(), title, body, date: new Date().toLocaleDateString('es-ES') });
+  localStorage.setItem('notes', JSON.stringify(notes));
+  document.getElementById('noteTitle').value = '';
+  document.getElementById('noteBody').value = '';
+  renderNotes();
+  alert('✅ Nota guardada');
+}
+function renderNotes() {
+  const list = document.getElementById('notesList');
+  const notes = getNotes();
+  if (notes.length === 0) {
+    list.innerHTML = '<p style="color:#8fa3c7;text-align:center;padding:20px">No hay notas todavía</p>';
+    return;
+  }
+  list.innerHTML = notes.map(n => `
+    <div class="note-item" onclick="showNote(${n.id})">
+      <div>
+        <b>${escapeHtml(n.title)}</b><br>
+        <small style="color:#8fa3c7">${n.date}</small>
+      </div>
+      <button class="del" onclick="event.stopPropagation();delNote(${n.id})">🗑️</button>
+    </div>
+  `).join('');
+}
+function showNote(id) {
+  const n = getNotes().find(x => x.id === id);
+  if (n) alert(n.title + '\n\n' + n.body);
+}
+function delNote(id) {
+  if (!confirm('¿Eliminar nota?')) return;
+  localStorage.setItem('notes', JSON.stringify(getNotes().filter(n => n.id !== id)));
+  renderNotes();
+}
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ============ MINI IA ============
+const KNOWLEDGE = [
+  { k:['delta-v','delta v','dv','velocidad característica'], a:'El Delta-V (Δv) es el cambio total de velocidad que puede lograr un cohete. Se calcula con la ecuación de Tsiolkovsky: Δv = Isp · g₀ · ln(m₀/mf). Es el parámetro clave para determinar el alcance de una misión.' },
+  { k:['tsiolkovsky','ecuación cohete','ecuacion cohete'], a:'La ecuación de Tsiolkovsky: Δv = ve · ln(m₀/mf) donde ve = Isp·g₀. Describe cómo la velocidad final depende de la relación de masas y la velocidad de escape del propelente.' },
+  { k:['isp','impulso específico','impulso especifico'], a:'El Impulso Específico (Isp) mide la eficiencia de un motor cohete. Se expresa en segundos. Valores típicos: sólidos ~250s, queroseno/LOX ~330s, hidrógeno/LOX ~450s, iones ~3000s.' },
+  { k:['twr','thrust to weight','empuje peso'], a:'El TWR (Thrust-to-Weight Ratio) es la relación empuje/peso. Para despegar TWR > 1 es obligatorio. Los cohetes suelen tener 1.2-1.5 al despegue. Un TWR muy alto causa exceso de aceleración y estrés estructural.' },
+  { k:['órbita','orbita','leo','geo'], a:'Órbitas comunes: LEO (160-2000 km, ~7.8 km/s), MEO (~20,000 km, GPS), GEO (35,786 km, ~3.07 km/s, período 24h), HEO (elípticas). La velocidad orbital es v = √(μ/r).' },
+  { k:['escape','velocidad de escape'], a:'La velocidad de escape terrestre es 11.2 km/s (desde superficie). Fórmula: v = √(2μ/r). Necesaria para misiones interplanetarias.' },
+  { k:['falcon','spacex','falcon 9'], a:'Falcon 9: cohete de dos etapas, 70m altura, 3.66m diámetro. Carga útil LEO: 22,800 kg. Propelente: RP-1/LOX. Primera etapa reutilizable con 9 motores Merlin 1D.' },
+  { k:['saturno v','saturn v','apolo'], a:'Saturn V: cohete lunar del programa Apolo. 110.6m altura, 10m diámetro, 2,970 toneladas. 5 motores F-1 en primera etapa (empuje total ~34 MN). Llevó humanos a la Luna (1969-1972).' },
+  { k:['starship','starship super heavy'], a:'Starship/Super Heavy de SpaceX: 121m total. Super Heavy: 33 motores Raptor, ~74 MN empuje. Starship: 6 motores. Totalmente reutilizable, propelente metano/LOX. Carga útil LEO: 100-150 toneladas.' },
+  { k:['propelente','combustible','queroseno','hidrógeno','metano'], a:'Propelentes comunes: RP-1 (queroseno refinado) + LOX - denso, buena densidad. LH2 + LOX - máxima Isp (~450s), criogénico difícil. CH4 (metano) + LOX - balance, usado en Raptor. Hipergólicos (N2O4/UDMH) - autoignición, tóxicos.' },
+  { k:['aleta','aletas','fin','fins'], a:'Las aletas estabilizan el cohete aerodinámicamente. 3-4 aletas son comunes. Su tamaño y forma afectan el centro de presión. Deben estar detrás del centro de gravedad para estabilidad.' },
+  { k:['centro de gravedad','centro de presión','cg','cp'], a:'Para estabilidad: el Centro de Gravedad (CG) debe estar DELANTE del Centro de Presión (CP). Si CP está delante del CG, el cohete es inestable y girará. Margen estático típico: 1-2 calibres.' },
+  { k:['cohete','cómo funciona','como funciona cohete'], a:'Un cohete funciona por la Tercera Ley de Newton: expulsa masa a alta velocidad hacia abajo, generando empuje hacia arriba. No necesita aire (funciona en vacío). El empuje F = ṁ · ve + (pe - pa)·Ae.' },
+  { k:['reentrada','reingreso','escudo térmico'], a:'En reentrada, la compresión del aire genera temperaturas extremas (>1500°C). Los escudos ablativos (como en Apolo) se queman protegiendo la nave. Las cápsulas modernas usan materiales ablativos como PICA-X.' },
+  { k:['delta v orbital','leo delta','delta-v marte'], a:'Delta-V típicos: LEO desde Tierra ~9.4 km/s. Tierra→Marte (transferencia Hohmann) ~3.6 km/s extra. Tierra→Luna ~3.2 km/s. Retorno Lunar ~1 km/s.' },
+  { k:['motor cohete','raptor','merlin','rd-180'], a:'Motores notables: Merlin 1D (SpaceX, RP-1/LOX, ~845 kN mar). Raptor (SpaceX, CH4/LOX, ~2,300 kN). RD-180 (Rusia, RP-1/LOX, 3,830 kN). RS-25 (SSME, LH2/LOX, 2,280 kN vacío). F-1 (Saturn V, 6,770 kN).' },
+  { k:['presión','presion','cámara combustión'], a:'Presión típica de cámara: Merlin ~97 bar, Raptor ~300 bar, RD-180 ~257 bar. Mayor presión = mayor eficiencia pero mayor estrés en la cámara y turbobombas.' },
+];
+
+function getAIResponse(msg) {
+  const m = msg.toLowerCase();
+  for (const item of KNOWLEDGE) {
+    if (item.k.some(k => m.includes(k))) return item.a;
+  }
+  // Cálculo rápido embebido
+  const numMatch = m.match(/(\d+(\.\d+)?)/g);
+  if (m.includes('órbita') || m.includes('orbita')) {
+    if (numMatch) {
+      const alt = parseFloat(numMatch[0]);
+      if (alt < 100) return `Si te refieres a ${alt} km de altitud, la velocidad orbital sería ${Math.sqrt(398600.4418/(6371+alt)).toFixed(2)} km/s. ¿Quieres calcularla formalmente en la pestaña Calc?`;
+    }
+  }
+  return 'No tengo información específica sobre eso. Prueba preguntar por: Delta-V, Isp, TWR, órbitas, velocidad de escape, Falcon 9, Saturn V, Starship, propelentes, aletas, centro de gravedad, motores cohete, reentrada... O usa la calculadora para cómputos numéricos.';
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const box = document.getElementById('chatBox');
+  box.innerHTML += `<div class="msg user">${escapeHtml(msg)}</div>`;
+ 
